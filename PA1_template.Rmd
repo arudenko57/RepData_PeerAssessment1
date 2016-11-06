@@ -1,25 +1,103 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Markdown Assignment"
+author: "Alex Rudenko"
+date: "November 4, 2016"
+output: html_document
 ---
+Activity Monitoring Analysis
+============================
+
+## 1. Loading and preprocessing the data
 
 
-## Loading and preprocessing the data
+```{r setup, include=TRUE,results='markup'}
+knitr::opts_chunk$set(echo = TRUE)
+raw_activity <- read.csv("activity.csv")
+all_activity <- raw_activity[!is.na(raw_activity$steps),]
+activity <- all_activity[all_activity$steps>0,]
+str(activity)
+#agg <- tapply(activity$steps,activity$date,sum)
 
 
+```
 
-## What is mean total number of steps taken per day?
+## 2. Total number of steps taken per day, their mean and median
+```{r}
+# steps_agg <- tapply(activity$steps,activity$date,sum)
+daily_steps <- aggregate(steps ~ date, activity, sum)
+hist(daily_steps$steps, main="Histogram of the total number of steps taken each day")
+steps_mean <- mean(daily_steps$steps, na.rm = TRUE)
+steps_median <- median(daily_steps$steps, na.rm = TRUE)
 
+```
+Mean of number of steps taken each day is `r  steps_mean`
 
+Median number of steps taken each day is `r steps_median`
 
-## What is the average daily activity pattern?
+## 3. Average number of steps taken
 
+```{r}
+library(ggplot2)
+steps_avg_per_interval <- aggregate(steps ~ interval, activity,mean)
+plot(steps_avg_per_interval$interval,steps_avg_per_interval$steps, type="l",xlab = "5-min intervals", ylab = "Average number of steps")
+ms <- max(steps_avg_per_interval$steps)
+x <- which.max(steps_avg_per_interval$steps)
+intN <- steps_avg_per_interval$interval[x]
+```
 
+Interval with maximum average number of steps (`r ms`) is `r intN`
 
-## Imputing missing values
+## 4. Imputing missing values
 
+```{r}
+tot_NA <- sum(!complete.cases(raw_activity))
+```
+Total number of missing values is `r tot_NA`
 
+### Replacing missing steps values with average for that interval
+```{r}
+imputed <- raw_activity
+avg <- aggregate(steps ~ interval, all_activity,mean) 
+for(i in 1:length(imputed$steps)) {
+  if (is.na(imputed$steps[i])) {
+    x <- which(avg$interval == imputed$interval[i])
+    imputed$steps[i] <- avg$steps[x]
+  } 
+}
+imp_NA <- sum(!complete.cases(imputed))
+```
+Total number of missing values is `r imp_NA`
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+daily_steps <- aggregate(steps ~ date, imputed, sum)
+hist(daily_steps$steps, main="Total number of steps taken each day after imputing mising values")
+new_mean <- mean(daily_steps$steps, na.rm = TRUE)
+new_median <- median(daily_steps$steps, na.rm = TRUE)
+d_mean <- new_mean - steps_mean
+d_median <- new_median - steps_median
+
+```
+After the missing values where imputing:
+
+Mean of number of steps taken each day: `r  new_mean` (changed by `r  d_mean`)
+
+Median number of steps taken each day: `r new_median` (change by `r d_median`)
+
+## Differences in activity patterns between weekdays and weekends
+
+```{r}
+dtw <- as.POSIXlt(as.Date(imputed$date,"%m/%d/%Y"))$wday
+dt_type <- ifelse(dtw %in% c(1:5), "weekday", "weekend")
+imputed$daytype <- factor(dt_type, labels = c("weekday", "weekend"))
+
+# Creating a plot
+library(lattice)
+avg <- aggregate(steps ~ interval + daytype, imputed, mean)
+y <- avg$steps
+x <- avg$interval
+f <- avg$daytype
+xyplot(y ~ x | f, layout= c(1,2), type="l", xlab = "5-min intervals", ylab="Average number od steps")
+```
+
+## END
+
